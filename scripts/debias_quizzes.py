@@ -36,9 +36,6 @@ ANCHOR = re.compile(
 
 
 def seed_for(path, question_text):
-    # glob yields OS-native separators, so seeding off the raw path would give
-    # Windows a different arrangement than Linux. Normalize first, matching
-    # debias_certification_questions.py, which seeds off `relative_to(ROOT).as_posix()`.
     normalized = path.replace("\\", "/")
     h = hashlib.sha256(f"{normalized}\x00{question_text}".encode("utf-8")).hexdigest()
     return int(h[:16], 16)
@@ -123,8 +120,6 @@ def main():
     ap.add_argument("--check", action="store_true", help="report only, do not write")
     args = ap.parse_args()
 
-    # Regression guard: the committed arrangement is only reproducible if the
-    # seed ignores the path separator, so both forms must agree on every OS.
     assert seed_for("phases/a/quiz.json", "q") == seed_for("phases\\a\\quiz.json", "q"), (
         "seed_for must not depend on the platform path separator"
     )
