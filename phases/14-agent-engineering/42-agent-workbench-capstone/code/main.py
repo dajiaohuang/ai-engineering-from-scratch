@@ -238,6 +238,7 @@ for source in "${sources[@]}"; do
     if [[ -e "$destination" && "$FORCE" != "--force" ]]; then
         continue
     fi
+    mkdir -p "$(dirname "$destination")"
     cp -p "$source" "$destination"
 done
 

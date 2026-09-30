@@ -1,3 +1,7 @@
+# Installer behavior follows the capstone lesson contract and pack layout.
+# Source: phases/14-agent-engineering/42-agent-workbench-capstone/docs/en.md.
+# These integration tests use only Python's standard library and Bash.
+# They protect safe installs, collision handling, and nested file copying.
 from __future__ import annotations
 
 import os
@@ -60,9 +64,11 @@ class InstallScriptTests(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.bash = _bash_executable()
 
-    def run_installer(self, target: Path, *args: str) -> subprocess.CompletedProcess[str]:
+    def run_installer(
+        self, target: Path, *args: str, installer: Path = INSTALLER
+    ) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
-            [self.bash, _bash_path(INSTALLER), *args],
+            [self.bash, _bash_path(installer), *args],
             cwd=target,
             capture_output=True,
             text=True,
@@ -76,6 +82,26 @@ class InstallScriptTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             for relative in ("AGENTS.md", ".workbench-version", "docs/reviewer-rubric.md", "schemas/agent_state.schema.json", "scripts/init_agent.py"):
                 self.assertTrue((target / relative).is_file(), relative)
+
+    def test_fresh_install_creates_parents_for_nested_pack_files(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            target = root / "target"
+            target.mkdir()
+            pack = root / "pack"
+            shutil.copytree(PACK, pack)
+            relative = Path("docs") / "examples" / "nested" / "guide.md"
+            contents = "nested pack file\n"
+            nested_source = pack / relative
+            nested_source.parent.mkdir(parents=True)
+            nested_source.write_text(contents, encoding="utf-8")
+
+            result = self.run_installer(
+                target, installer=pack / "bin" / "install.sh"
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual((target / relative).read_text(encoding="utf-8"), contents)
 
     def test_collision_refuses_before_any_write(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
