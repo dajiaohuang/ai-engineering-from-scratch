@@ -155,6 +155,9 @@ def strip_trailing_punct(url: str) -> str:
         if url.count(closer) <= url.count(pairs[closer]):
             break
         url = url[:-1]
+    # Removing an unmatched closer can expose punctuation before it.
+    while url and url[-1] in TRAILING_PUNCT:
+        url = url[:-1]
     return url
 
 
@@ -202,7 +205,18 @@ def extract_urls(text: str) -> list[tuple[str, int]]:
     for lineno, line in enumerate(text.splitlines(), start=1):
         masked = list(line)
         for url, start, end in extract_markdown_urls(line):
-            masked[start:end] = [" "] * (end - start)
+            link_end = start - 2  # the `](` immediately before the destination
+            depth = 0
+            mask_start = start
+            for index in range(link_end, -1, -1):
+                if line[index] == "]":
+                    depth += 1
+                elif line[index] == "[":
+                    depth -= 1
+                    if depth == 0:
+                        mask_start = index
+                        break
+            masked[mask_start:end] = [" "] * (end - mask_start)
             key = (lineno, url)
             if key in seen_per_line:
                 continue
