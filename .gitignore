@@ -90,3 +90,8 @@ i18n/*/.cache/
 i18n/*/.translate-cache.json
 i18n/*/ui.json
 site/langs.js
+
+!.claude/skills/build-project/
+!.claude/skills/build-project/**
+site/projects-data.js
+site/project-content/

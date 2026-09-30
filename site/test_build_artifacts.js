@@ -459,8 +459,9 @@ function writeMarkdown(file, { name, description, version }) {
 test('shared site asset families use the expected cache keys on every page', () => {
   const release = '20260822a';
   const styleRelease = '20260824a';
-  const navigationRelease = '20260925a';
+  const navigationRelease = '20260927a';
   const narrationRelease = '20260829a';
+  const homepageRelease = '20260927a';
   const pages = [
     'about.html',
     'assessment.html',
@@ -488,10 +489,16 @@ test('shared site asset families use the expected cache keys on every page', () 
     const source = sourceFor(page);
     assert.equal(versionFor(source, 'style.css'), styleRelease, `${page} has stale style.css`);
     assert.equal(versionFor(source, 'progress.js'), release, `${page} has stale progress.js`);
-    assert.equal(versionFor(source, 'header.js'), navigationRelease, `${page} has stale header.js`);
   }
 
-  assert.equal(versionFor(sourceFor('index.html'), 'app.js'), release);
+  for (const page of fs.readdirSync(__dirname).filter(name => name.endsWith('.html'))) {
+    const source = sourceFor(page);
+    if (source.includes('header.js')) {
+      assert.equal(versionFor(source, 'header.js'), navigationRelease, `${page} has stale header.js`);
+    }
+  }
+
+  assert.equal(versionFor(sourceFor('index.html'), 'app.js'), homepageRelease);
   assert.equal(versionFor(sourceFor('prereqs.html'), 'roadmap.css'), release);
   assert.equal(versionFor(sourceFor('prereqs.html'), 'roadmap.js'), release);
   assert.match(
@@ -1567,12 +1574,13 @@ test('reader prose stays ragged-right without browser-inserted hyphens', () => {
   });
 });
 
-test('shared header progressively compacts without hiding GitHub stars or search', () => {
+test('shared header keeps its menu at desktop widths without hiding GitHub stars or search', () => {
   const headerSource = fs.readFileSync(path.join(__dirname, 'header.js'), 'utf8');
   const styles = fs.readFileSync(path.join(__dirname, 'style.css'), 'utf8');
   const movableTools = headerSource.match(/function isMovableTool\(child\) \{([\s\S]*?)\n    \}/);
 
-  assert.match(headerSource, /var COMPACT_HEADER_QUERY = '\(max-width: 1400px\)'/);
+  assert.doesNotMatch(headerSource, /COMPACT_HEADER_QUERY|restoreDesktopTools/);
+  assert.match(headerSource, /nav\.hidden = !open;/);
   assert.match(headerSource, /var NARROW_HEADER_QUERY = '\(max-width: 820px\)'/);
   assert.match(headerSource, /priorityNav\.className = 'header-priority-nav'/);
   assert.match(headerSource, /label !== 'contents' && label !== 'catalog' && label !== 'learning paths'/);
@@ -1599,8 +1607,8 @@ test('shared header progressively compacts without hiding GitHub stars or search
 
   assert.match(styles, /\.header-inner\s*\{[\s\S]*?width: 100%;[\s\S]*?max-width: 1360px;[\s\S]*?min-width: 0;/);
   assert.match(styles, /\.header-nav,\s*\n\.header-priority-nav\s*\{[\s\S]*?white-space: nowrap;/);
-  assert.match(styles, /@media \(max-width: 1480px\) and \(min-width: 1401px\)/);
-  assert.match(styles, /@media \(max-width: 1400px\) \{[\s\S]*?\.header-priority-nav\s*\{[\s\S]*?\.header-inner > \.header-github[\s\S]*?\.header-inner > \.search-toggle[\s\S]*?\.header-nav\s*\{[\s\S]*?width: min\(360px, calc\(100vw - 32px\)\);[\s\S]*?overflow-y: auto;/);
+  assert.doesNotMatch(styles, /@media \(max-width: (?:1400|1480)px\)/);
+  assert.match(styles, /\.header-menu-toggle\s*\{\s*order: 5;\s*display: inline-flex;[\s\S]*?\.header-priority-nav\s*\{[\s\S]*?\.header-inner > \.header-github[\s\S]*?\.header-inner > \.search-toggle[\s\S]*?\.header-nav\s*\{[\s\S]*?width: min\(360px, calc\(100vw - 32px\)\);[\s\S]*?overflow-y: auto;/);
   assert.match(styles, /@media \(max-width: 820px\) \{[\s\S]*?\.header-priority-nav\s*\{\s*display: none;[\s\S]*?\.header-inner > \.header-github[\s\S]*?\.header-inner > \.search-toggle/);
   assert.match(styles, /@media \(max-width: 480px\) \{[\s\S]*?\.header-inner > \.header-github svg\s*\{\s*display: none;[\s\S]*?\.header-inner > \.header-github::before/);
 });
@@ -2304,4 +2312,58 @@ test('MCP registry drift quarantines and deactivates only the drifted release', 
   assert.equal(result.evidence.rollbackCandidate.activeRouting, false);
   assert.equal(result.evidence.rollbackCandidate.activationRequires, 'explicit rollback decision');
   assert.match(result.verdict, /separately admitted, healthy 3\.9\.2 release/i);
+});
+
+test('lesson page includes completion panel and button contract', () => {
+  const lessonHtml = fs.readFileSync(path.join(__dirname, 'lesson.html'), 'utf8');
+  assert.match(lessonHtml, /renderLessonCompletionPanel\(container\)/);
+  assert.match(lessonHtml, /function mountLessonCompletionPanel/);
+  assert.match(lessonHtml, /function renderLessonCompletionPanel/);
+  assert.match(lessonHtml, /function syncLessonCompletionUi/);
+  assert.match(lessonHtml, /Complete Lesson/);
+  assert.match(lessonHtml, /Completed ✓/);
+  assert.match(lessonHtml, /Mark as incomplete/);
+  assert.match(lessonHtml, /\.ai-panel--complete/);
+  assert.match(lessonHtml, /\.lesson-complete-btn/);
+  assert.match(lessonHtml, /\.lesson-complete-btn\.is-completed/);
+  assert.match(lessonHtml, /\.lesson-complete-btn:disabled\.is-completed/);
+  assert.match(lessonHtml, /\.lesson-unmark-btn/);
+  assert.match(lessonHtml, /completeBtn\.disabled = isDone/);
+  assert.doesNotMatch(lessonHtml, /completeBtn\.setAttribute\('aria-pressed'/);
+  assert.match(lessonHtml, /statusEl\.setAttribute\('data-state', 'complete'\)/);
+  assert.match(lessonHtml, /statusEl\.setAttribute\('data-state', 'incomplete'\)/);
+  assert.match(lessonHtml, /statusState !== \(isDone \? 'complete' : 'incomplete'\)/);
+
+  const uiStrings = JSON.parse(fs.readFileSync(path.join(__dirname, 'ui-strings.json'), 'utf8'));
+  for (const label of [
+    'Complete Lesson',
+    'Mark this lesson as completed to update your progress and continue through the curriculum.',
+    'Completed ✓',
+    'Mark as incomplete',
+    'Lesson completed',
+    'Mark lesson as complete',
+    'Lesson marked as completed. Progress updated.',
+    'Lesson marked as incomplete.',
+  ]) {
+    assert.ok(uiStrings.keys.includes(label), `${label} is missing from ui-strings.json`);
+    for (const [lang, pinned] of Object.entries(uiStrings.overrides)) {
+      assert.ok(pinned[label], `${label} has no ${lang} translation in ui-strings.json`);
+    }
+  }
+
+  const runtime = loadProgressRuntime();
+  const lesson = 'phases/01-math-foundations/01-scalar-derivatives';
+  assert.equal(runtime.api.isLessonComplete(lesson), false);
+
+  runtime.api.markLessonComplete(lesson, 'learner');
+  assert.equal(runtime.api.isLessonComplete(lesson), true);
+  const firstCompletedAt = runtime.api.getLessonProgress(lesson).completedAt;
+  assert.ok(firstCompletedAt > 0);
+
+  runtime.api.markLessonComplete(lesson, 'learner');
+  assert.equal(runtime.api.getLessonProgress(lesson).completedAt, firstCompletedAt);
+
+  runtime.api.unmarkLessonComplete(lesson);
+  assert.equal(runtime.api.isLessonComplete(lesson), false);
+  assert.equal(runtime.api.getLessonProgress(lesson).completedAt, null);
 });
